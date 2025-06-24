@@ -3,12 +3,27 @@ import React, { useState, useEffect } from 'react';
 import { WorldMap } from '../components/WorldMap';
 import { FlightInfo } from '../components/FlightInfo';
 import { TimezoneSelector } from '../components/TimezoneSelector';
-import { mockFlightData } from '../data/mockFlightData';
-import { Plane } from 'lucide-react';
+import { useFlightTracker } from '../hooks/useFlightTracker';
+import { calculateFlightStatus } from '../types/flight';
+import { Plane, AlertCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 const Index = () => {
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  // Use the flight tracker hook
+  const {
+    flightData,
+    isLoading,
+    isTracking,
+    errors,
+    stats,
+    startTracking,
+    stopTracking,
+    refreshAllFlights,
+    clearErrors
+  } = useFlightTracker();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -18,9 +33,30 @@ const Index = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const currentFlight = mockFlightData.flights.find(flight => flight.status === 'current');
-  const nextFlight = mockFlightData.flights.find(flight => flight.status === 'upcoming');
-  const finalDestination = mockFlightData.flights[mockFlightData.flights.length - 1];
+  // Monitor network status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Get current and next flights from real data
+  const currentFlights = flightData.filter(data => 
+    calculateFlightStatus(data.flight, currentTime) === 'current'
+  );
+  const upcomingFlights = flightData.filter(data => 
+    calculateFlightStatus(data.flight, currentTime) === 'upcoming'
+  );
+  const currentFlight = currentFlights[0]?.flight;
+  const nextFlight = upcomingFlights[0]?.flight;
+  const finalDestination = flightData[flightData.length - 1]?.flight;
 
   // Calculate total remaining time to final destination
   const getTotalRemainingTime = () => {
@@ -40,6 +76,17 @@ const Index = () => {
     }
     return `${hours}h ${minutes}m to ${finalDestination.to.city}`;
   };
+
+  // Get tracking status display
+  const getTrackingStatus = () => {
+    if (isLoading) return { text: 'Starting...', color: 'text-yellow-600', icon: RefreshCw, animate: 'animate-spin' };
+    if (!isTracking) return { text: 'Offline', color: 'text-gray-600', icon: WifiOff, animate: '' };
+    if (!isOnline) return { text: 'No Network', color: 'text-red-600', icon: WifiOff, animate: '' };
+    if (errors.length > 0) return { text: 'Issues', color: 'text-orange-600', icon: AlertCircle, animate: '' };
+    return { text: 'Live Tracking', color: 'text-green-600', icon: Wifi, animate: '' };
+  };
+
+  const trackingStatus = getTrackingStatus();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -62,11 +109,46 @@ const Index = () => {
             {/* Live Status */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md rounded-full px-4 py-2 border border-white/20">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-gray-700">
-                  Live tracking • {currentTime.toLocaleTimeString()}
+                <trackingStatus.icon 
+                  className={`w-3 h-3 ${trackingStatus.color} ${trackingStatus.animate}`} 
+                />
+                <span className={`text-sm font-medium ${trackingStatus.color}`}>
+                  {trackingStatus.text} • {currentTime.toLocaleTimeString()}
                 </span>
               </div>
+              
+              {/* Control buttons */}
+              <div className="flex items-center gap-2">
+                {!isTracking ? (
+                  <button
+                    onClick={startTracking}
+                    disabled={isLoading}
+                    className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-medium hover:bg-green-600 transition-colors disabled:opacity-50"
+                  >
+                    Start Tracking
+                  </button>
+                ) : (
+                  <button
+                    onClick={refreshAllFlights}
+                    disabled={isLoading}
+                    className="px-3 py-1 bg-blue-500 text-white rounded-full text-xs font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                )}
+                
+                {errors.length > 0 && (
+                  <button
+                    onClick={clearErrors}
+                    className="px-3 py-1 bg-red-500 text-white rounded-full text-xs font-medium hover:bg-red-600 transition-colors flex items-center gap-1"
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    Clear ({errors.length})
+                  </button>
+                )}
+              </div>
+              
               <TimezoneSelector 
                 selectedTimezone={selectedTimezone}
                 onTimezoneChange={setSelectedTimezone}
@@ -108,10 +190,11 @@ const Index = () => {
         {/* World Map */}
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 overflow-hidden">
           <WorldMap 
-            flights={mockFlightData.flights}
+            flightData={flightData}
             currentTime={currentTime}
           />
         </div>
+
       </main>
     </div>
   );

@@ -1,71 +1,114 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Plane } from 'lucide-react';
-
-interface Flight {
-  id: string;
-  from: {
-    code: string;
-    city: string;
-    coordinates: [number, number];
-  };
-  to: {
-    code: string;
-    city: string;
-    coordinates: [number, number];
-  };
-  departure: string;
-  arrival: string;
-  status: 'completed' | 'current' | 'upcoming';
-  progress?: number;
-}
+import { Plane, MapPin, Clock } from 'lucide-react';
+import { FlightTrackingData } from '../types/flight';
+import { projectToSVG, generateFlightPath } from '../lib/geoUtils';
 
 interface WorldMapProps {
-  flights: Flight[];
+  flightData: FlightTrackingData[];
   currentTime: Date;
 }
 
-export const WorldMap: React.FC<WorldMapProps> = ({ flights, currentTime }) => {
+export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapDimensions, setMapDimensions] = useState({ width: 1000, height: 500 });
+  const [selectedFlight, setSelectedFlight] = useState<string | null>(null);
 
-  // Convert lat/lon to SVG coordinates (simple equirectangular projection)
-  const projectCoordinates = (lat: number, lon: number) => {
-    const x = ((lon + 180) / 360) * mapDimensions.width;
-    const y = ((90 - lat) / 180) * mapDimensions.height;
-    return [x, y];
+  // Create flat horizontal flight path with circular layout
+  const getCircularPosition = (airportCode: string) => {
+    const airportOrder = ['ORD', 'NRT', 'CGK']; // Order of airports
+    const index = airportOrder.indexOf(airportCode);
+    const totalAirports = airportOrder.length;
+    
+    // Center of the map
+    const centerX = mapDimensions.width / 2;
+    const centerY = mapDimensions.height / 2;
+    
+    // Space airports evenly across the screen width with margins
+    const margin = mapDimensions.width * 0.1; // 10% margin on each side
+    const availableWidth = mapDimensions.width - (2 * margin);
+    const spacing = availableWidth / (totalAirports - 1);
+    
+    return {
+      x: margin + (index * spacing),
+      y: centerY
+    };
   };
 
-  // Calculate current position for active flight
-  const getCurrentFlightPosition = (flight: Flight) => {
-    if (flight.status !== 'current' || !flight.progress) return null;
+  const createFlatFlightPath = (data: FlightTrackingData) => {
+    const fromPos = getCircularPosition(data.flight.from.code);
+    const toPos = getCircularPosition(data.flight.to.code);
     
-    const [fromX, fromY] = projectCoordinates(flight.from.coordinates[0], flight.from.coordinates[1]);
-    const [toX, toY] = projectCoordinates(flight.to.coordinates[0], flight.to.coordinates[1]);
+    // Create a gentle upward curve
+    const midX = (fromPos.x + toPos.x) / 2;
+    const midY = fromPos.y - 60; // Curve upward slightly
     
-    const currentX = fromX + (toX - fromX) * (flight.progress / 100);
-    const currentY = fromY + (toY - fromY) * (flight.progress / 100);
-    
-    return [currentX, currentY];
+    return `M ${fromPos.x} ${fromPos.y} Q ${midX} ${midY} ${toPos.x} ${toPos.y}`;
   };
 
-  // Create curved path between two points
-  const createFlightPath = (from: [number, number], to: [number, number]) => {
-    const [x1, y1] = projectCoordinates(from[0], from[1]);
-    const [x2, y2] = projectCoordinates(to[0], to[1]);
+  // Get country flag emoji
+  const getCountryFlag = (airportCode: string): string => {
+    const flagMap: { [key: string]: string } = {
+      'ORD': '🇺🇸', // Chicago, USA
+      'NRT': '🇯🇵', // Tokyo, Japan
+      'CGK': '🇮🇩', // Jakarta, Indonesia
+      'LAX': '🇺🇸', // Los Angeles, USA
+      'JFK': '🇺🇸', // New York, USA
+      'LHR': '🇬🇧', // London, UK
+      'CDG': '🇫🇷', // Paris, France
+      'FRA': '🇩🇪', // Frankfurt, Germany
+      'DXB': '🇦🇪', // Dubai, UAE
+      'SIN': '🇸🇬', // Singapore
+      'SYD': '🇦🇺', // Sydney, Australia
+    };
+    return flagMap[airportCode] || '🌍';
+  };
+
+  // Get current aircraft position on flat line
+  const getCurrentPosition = (data: FlightTrackingData) => {
+    const fromPos = getCircularPosition(data.flight.from.code);
+    const toPos = getCircularPosition(data.flight.to.code);
     
-    // Create a curve by adding a control point
-    const midX = (x1 + x2) / 2;
-    const midY = Math.min(y1, y2) - 50; // Curve upward
+    // Calculate progress along the straight line
+    const progress = data.flight.progress || 0;
+    const progressDecimal = progress / 100;
     
-    return `M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`;
+    return {
+      x: fromPos.x + (toPos.x - fromPos.x) * progressDecimal,
+      y: fromPos.y + (toPos.y - fromPos.y) * progressDecimal
+    };
+  };
+
+  // Get status color for flight
+  const getFlightColor = (data: FlightTrackingData) => {
+    switch (data.flight.status) {
+      case 'completed': return '#10B981'; // green
+      case 'current': return data.isLive ? '#F59E0B' : '#F97316'; // amber/orange
+      case 'upcoming': return '#6B7280'; // gray
+      default: return '#6B7280';
+    }
+  };
+
+  // Get aircraft rotation based on heading
+  const getAircraftRotation = (data: FlightTrackingData) => {
+    if (data.flight.liveData?.heading) {
+      return data.flight.liveData.heading;
+    }
+    // Calculate bearing from current position to destination
+    const from = data.currentPosition;
+    const to = { latitude: data.flight.to.coordinates[0], longitude: data.flight.to.coordinates[1] };
+    // Simple bearing calculation for display
+    const deltaLon = to.longitude - from.longitude;
+    const deltaLat = to.latitude - from.latitude;
+    return Math.atan2(deltaLon, deltaLat) * (180 / Math.PI);
   };
 
   useEffect(() => {
     const updateDimensions = () => {
-      if (svgRef.current) {
-        const rect = svgRef.current.getBoundingClientRect();
-        setMapDimensions({ width: rect.width, height: rect.height });
+      if (mapContainerRef.current) {
+        const rect = mapContainerRef.current.getBoundingClientRect();
+        setMapDimensions({ width: 1000, height: 500 }); // Fixed dimensions for consistent projection
       }
     };
 
@@ -75,137 +118,167 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flights, currentTime }) => {
   }, []);
 
   return (
-    <div className="relative w-full h-96 bg-gray-50 rounded-lg overflow-hidden">
+    <div ref={mapContainerRef} className="relative w-full h-96 bg-gray-50 rounded-lg overflow-hidden">
       <svg
         ref={svgRef}
         className="w-full h-full"
-        viewBox={`0 0 ${mapDimensions.width} ${mapDimensions.height}`}
+        viewBox="0 0 1000 500"
         preserveAspectRatio="xMidYMid meet"
       >
-        {/* Background */}
-        <rect width="100%" height="100%" fill="#f8fafc" />
+        {/* Light background */}
+        <rect width="1000" height="500" fill="#f8fafc" />
 
-        {/* World map outline (simplified) */}
-        <g stroke="#e2e8f0" strokeWidth="1" fill="#f1f5f9">
-          {/* Simplified continents */}
-          <path d="M150 120 Q200 100 280 130 L320 140 Q350 160 320 200 L280 220 Q200 240 150 200 Q120 160 150 120 Z" />
-          <path d="M400 150 Q480 120 550 140 L580 160 Q600 200 570 240 L520 260 Q450 280 400 250 Q370 200 400 150 Z" />
-          <path d="M650 130 Q720 110 780 130 L820 150 Q850 180 820 220 L780 240 Q720 260 650 230 Q620 180 650 130 Z" />
-          <path d="M750 250 Q800 230 850 250 L880 270 Q900 300 870 330 L830 350 Q780 370 750 340 Q720 300 750 250 Z" />
-          <path d="M80 280 Q130 260 180 280 L210 300 Q230 330 200 360 L160 380 Q110 400 80 370 Q50 330 80 280 Z" />
-        </g>
-
-        {/* Flight paths */}
-        {flights.map((flight, index) => (
-          <g key={flight.id}>
-            {/* Flight path line */}
+        {/* Flight paths and dots */}
+        {flightData.map((data) => (
+          <g key={data.flight.id}>
+            {/* Flat flight path */}
             <path
-              d={createFlightPath(flight.from.coordinates, flight.to.coordinates)}
-              stroke={
-                flight.status === 'completed' 
-                  ? '#10B981' 
-                  : flight.status === 'current' 
-                    ? '#F59E0B' 
-                    : '#6B7280'
-              }
-              strokeWidth="2"
+              d={createFlatFlightPath(data)}
+              stroke={getFlightColor(data)}
+              strokeWidth={selectedFlight === data.flight.id ? "8" : "7"}
               fill="none"
-              strokeDasharray={flight.status === 'upcoming' ? '5,5' : 'none'}
-              className={flight.status === 'current' ? 'opacity-80' : 'opacity-60'}
+              strokeDasharray={data.flight.status === 'upcoming' ? '8,4' : 'none'}
+              className={`transition-all duration-300 cursor-pointer hover:opacity-100 ${
+                data.flight.status === 'current' ? 'opacity-90' : 'opacity-60'
+              } ${selectedFlight === data.flight.id ? 'opacity-100' : ''}`}
+              style={{ 
+                filter: data.isLive ? 'drop-shadow(0 0 4px rgba(245, 158, 11, 0.5))' : 'none'
+              }}
+              onClick={() => setSelectedFlight(selectedFlight === data.flight.id ? null : data.flight.id)}
             />
 
-            {/* Departure airport */}
-            <g transform={`translate(${projectCoordinates(flight.from.coordinates[0], flight.from.coordinates[1])})`}>
-              <circle 
-                r="4" 
-                fill={flight.status === 'completed' ? '#10B981' : '#6B7280'}
-                className="hover:scale-125 transition-transform cursor-pointer"
-              />
-              <text 
-                x="8" 
-                y="-8" 
-                fontSize="10" 
-                fill="#374151" 
-                fontWeight="bold"
-                className="pointer-events-none"
-              >
-                {flight.from.code}
-              </text>
-            </g>
+            {/* Departure airport dot with flag */}
+            {(() => {
+              const pos = getCircularPosition(data.flight.from.code);
+              return (
+                <g transform={`translate(${pos.x}, ${pos.y})`}>
+                  {/* Background circle */}
+                  <circle 
+                    r={selectedFlight === data.flight.id ? "50" : "40"} 
+                    fill="white"
+                    stroke="#e2e8f0"
+                    strokeWidth="5"
+                    className="hover:scale-110 transition-transform cursor-pointer"
+                    onClick={() => setSelectedFlight(selectedFlight === data.flight.id ? null : data.flight.id)}
+                  />
+                  {/* Country flag emoji */}
+                  <text 
+                    x="0" 
+                    y="15" 
+                    fontSize={selectedFlight === data.flight.id ? "44" : "36"} 
+                    textAnchor="middle"
+                    className="pointer-events-none select-none"
+                  >
+                    {getCountryFlag(data.flight.from.code)}
+                  </text>
+                  {/* Airport name below */}
+                  <text 
+                    x="0" 
+                    y="80" 
+                    fontSize="18" 
+                    fill="#374151" 
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    className="pointer-events-none select-none"
+                  >
+                    {data.flight.from.city}
+                  </text>
+                </g>
+              );
+            })()}
 
-            {/* Arrival airport */}
-            <g transform={`translate(${projectCoordinates(flight.to.coordinates[0], flight.to.coordinates[1])})`}>
-              <circle 
-                r="4" 
-                fill={
-                  flight.status === 'completed' 
-                    ? '#10B981' 
-                    : flight.status === 'current' 
-                      ? '#F59E0B' 
-                      : '#6B7280'
-                }
-                className="hover:scale-125 transition-transform cursor-pointer"
-              />
-              <text 
-                x="8" 
-                y="-8" 
-                fontSize="10" 
-                fill="#374151" 
-                fontWeight="bold"
-                className="pointer-events-none"
-              >
-                {flight.to.code}
-              </text>
-            </g>
+            {/* Arrival airport dot with flag */}
+            {(() => {
+              const pos = getCircularPosition(data.flight.to.code);
+              return (
+                <g transform={`translate(${pos.x}, ${pos.y})`}>
+                  {/* Background circle */}
+                  <circle 
+                    r={selectedFlight === data.flight.id ? "50" : "40"} 
+                    fill="white"
+                    stroke="#e2e8f0"
+                    strokeWidth="5"
+                    className="hover:scale-110 transition-transform cursor-pointer"
+                    onClick={() => setSelectedFlight(selectedFlight === data.flight.id ? null : data.flight.id)}
+                  />
+                  {/* Country flag emoji */}
+                  <text 
+                    x="0" 
+                    y="15" 
+                    fontSize={selectedFlight === data.flight.id ? "44" : "36"} 
+                    textAnchor="middle"
+                    className="pointer-events-none select-none"
+                  >
+                    {getCountryFlag(data.flight.to.code)}
+                  </text>
+                  {/* Airport name below */}
+                  <text 
+                    x="0" 
+                    y="80" 
+                    fontSize="18" 
+                    fill="#374151" 
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    className="pointer-events-none select-none"
+                  >
+                    {data.flight.to.city}
+                  </text>
+                </g>
+              );
+            })()}
+
+            {/* Current aircraft position moving along the curved path */}
+            {data.flight.status === 'current' && (() => {
+              const pos = getCurrentPosition(data);
+              
+              return (
+                <g transform={`translate(${pos.x}, ${pos.y})`} className="transition-all duration-1000 ease-in-out">
+                  {/* Aircraft indicator */}
+                  <circle 
+                    r={data.isLive ? "20" : "18"} 
+                    fill={data.isLive ? "#F59E0B" : "#F97316"}
+                    className={data.isLive ? "animate-pulse" : ""}
+                  />
+                  
+                  {/* Aircraft icon */}
+                  <Plane 
+                    size={30} 
+                    className="text-white transform -translate-x-4 -translate-y-4"
+                    style={{ fill: 'white' }}
+                  />
+                  
+                  {/* Flight progress info */}
+                  {selectedFlight === data.flight.id && (
+                    <g transform="translate(15, -10)">
+                      <rect 
+                        x="0" 
+                        y="0" 
+                        width="100" 
+                        height="40" 
+                        fill="white" 
+                        stroke="#e2e8f0" 
+                        rx="4"
+                        className="opacity-95"
+                      />
+                      <text x="6" y="12" fontSize="10" fontWeight="bold" fill="#374151">
+                        {data.flight.flightNumber}
+                      </text>
+                      <text x="6" y="24" fontSize="8" fill="#6B7280">
+                        {data.isLive ? 'Live' : 'Estimated'} • {data.flight.progress?.toFixed(0)}%
+                      </text>
+                      <text x="6" y="36" fontSize="8" fill="#6B7280">
+                        {data.isLive ? 'Real-time tracking' : 'Schedule-based estimate'}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })()}
           </g>
         ))}
-
-        {/* Current flight position */}
-        {flights
-          .filter(flight => flight.status === 'current')
-          .map(flight => {
-            const position = getCurrentFlightPosition(flight);
-            if (!position) return null;
-            
-            return (
-              <g key={`current-${flight.id}`} transform={`translate(${position[0]}, ${position[1]})`}>
-                <circle 
-                  r="6" 
-                  fill="#F59E0B" 
-                  className="animate-pulse"
-                />
-                <Plane 
-                  size={10} 
-                  className="text-white transform -translate-x-1.25 -translate-y-1.25"
-                  style={{ fill: 'white' }}
-                />
-              </g>
-            );
-          })
-        }
       </svg>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-        <div className="space-y-2 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-green-500"></div>
-            <span>Completed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-amber-500"></div>
-            <span>Current</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-gray-400 border-dashed border-t"></div>
-            <span>Upcoming</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Plane size={12} className="text-amber-500" />
-            <span>Live Position</span>
-          </div>
-        </div>
-      </div>
+
     </div>
   );
 };

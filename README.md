@@ -1,73 +1,204 @@
-# Welcome to your Lovable project
+# Flight Tracker
 
-## Project info
+A real-time flight tracking web application built with React and TypeScript. Track flights around the world with an interactive map visualization, timezone support, and live status updates.
 
-**URL**: https://lovable.dev/projects/f3dd2b3d-8376-4975-8ff8-95ff476a1d32
+## 🚀 Features
 
-## How can I edit this code?
+- **Real-time Flight Tracking**: Live flight status with progress updates
+- **Interactive World Map**: Visual flight paths with current aircraft position
+- **Multi-timezone Support**: Display flight times in different timezones globally  
+- **Flight Information Cards**: Detailed departure/arrival times and aircraft info
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Modern UI**: Built with shadcn/ui components and Tailwind CSS
 
-There are several ways of editing your application.
+## 🛠 Tech Stack
 
-**Use Lovable**
+- **Frontend Framework**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **State Management**: React hooks (useState, useEffect)
+- **Routing**: React Router DOM
+- **Data Fetching**: TanStack Query (React Query)
+- **Icons**: Lucide React
+- **Charts**: Recharts
+- **Date Handling**: date-fns
+- **Form Handling**: React Hook Form with Zod validation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f3dd2b3d-8376-4975-8ff8-95ff476a1d32) and start prompting.
+## 📁 Project Structure
 
-Changes made via Lovable will be committed automatically to this repo.
+```
+FlightTracker/
+├── src/
+│   ├── components/           # React components
+│   │   ├── ui/              # shadcn/ui base components
+│   │   ├── FlightInfo.tsx   # Flight information cards
+│   │   ├── WorldMap.tsx     # Interactive world map
+│   │   └── TimezoneSelector.tsx # Timezone selection dropdown
+│   ├── data/                # Mock data and types
+│   │   └── mockFlightData.ts # Flight data with coordinates
+│   ├── hooks/               # Custom React hooks
+│   ├── lib/                 # Utility functions
+│   ├── pages/               # Page components
+│   │   ├── Index.tsx        # Main dashboard page
+│   │   └── NotFound.tsx     # 404 error page
+│   ├── App.tsx              # Main app component
+│   ├── main.tsx             # App entry point
+│   └── index.css            # Global styles
+├── public/                  # Static assets
+├── components.json          # shadcn/ui configuration
+├── tailwind.config.ts       # Tailwind CSS configuration
+├── tsconfig.json           # TypeScript configuration
+├── vite.config.ts          # Vite configuration
+└── package.json            # Dependencies and scripts
+```
 
-**Use your preferred IDE**
+## 🏃‍♂️ Getting Started
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Node.js (v16 or higher)
+- npm or yarn
 
-Follow these steps:
+### Installation
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd FlightTracker
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install dependencies:
+```bash
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Start the development server:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+4. Open your browser and navigate to `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Available Scripts
 
-**Use GitHub Codespaces**
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run build:dev` - Build in development mode
+- `npm run lint` - Run ESLint
+- `npm run preview` - Preview production build
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🎯 Key Components
 
-## What technologies are used for this project?
+### FlightInfo Component
+- Displays flight details with departure/arrival information
+- Shows real-time progress for current flights
+- Supports timezone conversion for flight times
+- Visual status indicators for different flight states
 
-This project is built with:
+### WorldMap Component  
+- SVG-based world map with flight path visualization
+- Real-time aircraft position tracking
+- Color-coded flight paths (completed, current, upcoming)
+- Interactive hover effects and airport labels
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### TimezoneSelector Component
+- Dropdown for selecting different timezones
+- Supports major global timezones
+- Updates all flight times dynamically
 
-## How can I deploy this project?
+## 📊 Data Structure
 
-Simply open [Lovable](https://lovable.dev/projects/f3dd2b3d-8376-4975-8ff8-95ff476a1d32) and click on Share -> Publish.
+The application uses a structured flight data format:
 
-## Can I connect a custom domain to my Lovable project?
+```typescript
+interface Flight {
+  id: string;
+  from: {
+    code: string;      // Airport code (e.g., "LAX")
+    city: string;      // City name
+    coordinates: [number, number]; // [latitude, longitude]
+  };
+  to: {
+    code: string;
+    city: string;
+    coordinates: [number, number];
+  };
+  departure: string;   // ISO date string
+  arrival: string;     // ISO date string
+  status: 'completed' | 'current' | 'upcoming';
+  flightNumber?: string;
+  aircraft?: string;
+  progress?: number;   // 0-100 for current flights
+}
+```
 
-Yes, you can!
+## 🎨 UI/UX Features
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- **Glassmorphism Design**: Modern backdrop blur effects
+- **Gradient Backgrounds**: Beautiful color transitions
+- **Responsive Layout**: Mobile-first design approach
+- **Real-time Updates**: Live clock and progress tracking
+- **Smooth Animations**: CSS transitions and micro-interactions
+- **Accessibility**: Semantic HTML and keyboard navigation
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 🔧 Configuration
+
+### shadcn/ui Setup
+The project uses shadcn/ui with the following configuration:
+- Style: default
+- Base color: slate
+- CSS variables: enabled
+- TypeScript: enabled
+
+### Tailwind CSS
+Custom configuration with:
+- Dark mode support
+- Extended color palette
+- Custom animations
+- Container utilities
+
+### TypeScript
+Configured with:
+- Path aliases (`@/*` points to `./src/*`)
+- Strict type checking disabled for development
+- React JSX support
+
+## 🌍 Timezone Support
+
+The application supports multiple timezones:
+- UTC (Universal)
+- US Timezones (ET, CT, MT, PT)
+- European Timezones (GMT, CET)
+- Asian Timezones (JST, CST, GST)
+- Australian Timezone (AEDT)
+
+## 🚀 Deployment
+
+The project is optimized for deployment on:
+- Vercel
+- Netlify
+- GitHub Pages
+- Any static hosting service
+
+Build the project with:
+```bash
+npm run build
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run linting and tests
+5. Submit a pull request
+
+## 📝 License
+
+This project was generated with Lovable AI platform.
+
+## 🔗 Links
+
+- **Lovable Project**: https://lovable.dev/projects/f3dd2b3d-8376-4975-8ff8-95ff476a1d32
+- **Documentation**: [Lovable Docs](https://docs.lovable.dev)
+- **Custom Domain Setup**: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
