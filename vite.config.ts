@@ -6,7 +6,7 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: "/repo-name/", // remove if using custom domain
+  base: "/FlightTracker/", // remove if using custom domain
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
