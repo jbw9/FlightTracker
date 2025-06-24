@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://jbw9.github.io/",
+  "homepage": "https://jbw9.github.io/FlightTracker/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
