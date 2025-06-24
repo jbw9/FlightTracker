@@ -17,7 +17,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) =
 
   // Create flat horizontal flight path with circular layout
   const getCircularPosition = (airportCode: string) => {
-    const airportOrder = ['ORD', 'NRT', 'CGK']; // Order of airports
+    // Extract unique airports from flight data in order
+    const airportOrder: string[] = [];
+    flightData.forEach(data => {
+      if (!airportOrder.includes(data.flight.from.code)) {
+        airportOrder.push(data.flight.from.code);
+      }
+      if (!airportOrder.includes(data.flight.to.code)) {
+        airportOrder.push(data.flight.to.code);
+      }
+    });
+    
     const index = airportOrder.indexOf(airportCode);
     const totalAirports = airportOrder.length;
     
@@ -62,7 +72,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) =
       'SIN': '🇸🇬', // Singapore
       'SYD': '🇦🇺', // Sydney, Australia
     };
-    return flagMap[airportCode] || '🌍';
+    const flag = flagMap[airportCode];
+    return flag || '🌍';
   };
 
   // Get current aircraft position on flat line
@@ -131,19 +142,50 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) =
         {/* Flight paths and dots */}
         {flightData.map((data) => (
           <g key={data.flight.id}>
-            {/* Flat flight path */}
+            {/* Base flight path (gray background) */}
             <path
               d={createFlatFlightPath(data)}
-              stroke={getFlightColor(data)}
+              stroke={data.flight.status === 'upcoming' ? '#d1d5db' : '#e5e7eb'}
               strokeWidth={selectedFlight === data.flight.id ? "8" : "7"}
               fill="none"
               strokeDasharray={data.flight.status === 'upcoming' ? '8,4' : 'none'}
-              className={`transition-all duration-300 cursor-pointer hover:opacity-100 ${
-                data.flight.status === 'current' ? 'opacity-90' : 'opacity-60'
-              } ${selectedFlight === data.flight.id ? 'opacity-100' : ''}`}
-              style={{ 
-                filter: data.isLive ? 'drop-shadow(0 0 4px rgba(245, 158, 11, 0.5))' : 'none'
-              }}
+              className="transition-all duration-300"
+            />
+            
+            {/* Progress path (colored based on completion) */}
+            {data.flight.status === 'current' && data.flight.progress && (
+              <path
+                d={createFlatFlightPath(data)}
+                stroke="#22c55e"
+                strokeWidth={selectedFlight === data.flight.id ? "8" : "7"}
+                fill="none"
+                strokeDasharray={`${(data.flight.progress / 100) * 100} ${100 - (data.flight.progress / 100) * 100}`}
+                strokeDashoffset="0"
+                className="transition-all duration-1000 ease-out"
+                style={{ 
+                  filter: data.isLive ? 'drop-shadow(0 0 4px rgba(34, 197, 94, 0.5))' : 'none'
+                }}
+              />
+            )}
+            
+            {/* Completed flight path */}
+            {data.flight.status === 'completed' && (
+              <path
+                d={createFlatFlightPath(data)}
+                stroke="#22c55e"
+                strokeWidth={selectedFlight === data.flight.id ? "8" : "7"}
+                fill="none"
+                className="transition-all duration-300"
+              />
+            )}
+            
+            {/* Clickable invisible overlay for interaction */}
+            <path
+              d={createFlatFlightPath(data)}
+              stroke="transparent"
+              strokeWidth="20"
+              fill="none"
+              className="cursor-pointer"
               onClick={() => setSelectedFlight(selectedFlight === data.flight.id ? null : data.flight.id)}
             />
 
@@ -229,21 +271,36 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) =
 
             {/* Current aircraft position moving along the curved path */}
             {data.flight.status === 'current' && (() => {
-              const pos = getCurrentPosition(data);
+              const fromPos = getCircularPosition(data.flight.from.code);
+              const toPos = getCircularPosition(data.flight.to.code);
+              const progress = (data.flight.progress || 0) / 100;
+              
+              // Calculate position along the curved path
+              const midX = (fromPos.x + toPos.x) / 2;
+              const midY = fromPos.y - 60;
+              
+              // Quadratic Bézier curve calculation
+              const t = progress;
+              const pos = {
+                x: Math.pow(1-t, 2) * fromPos.x + 2*(1-t)*t * midX + Math.pow(t, 2) * toPos.x,
+                y: Math.pow(1-t, 2) * fromPos.y + 2*(1-t)*t * midY + Math.pow(t, 2) * toPos.y
+              };
               
               return (
                 <g transform={`translate(${pos.x}, ${pos.y})`} className="transition-all duration-1000 ease-in-out">
                   {/* Aircraft indicator */}
                   <circle 
-                    r={data.isLive ? "20" : "18"} 
-                    fill={data.isLive ? "#F59E0B" : "#F97316"}
+                    r={data.isLive ? "18" : "16"} 
+                    fill="#3b82f6"
+                    stroke="white"
+                    strokeWidth="3"
                     className={data.isLive ? "animate-pulse" : ""}
                   />
                   
                   {/* Aircraft icon */}
                   <Plane 
-                    size={30} 
-                    className="text-white transform -translate-x-4 -translate-y-4"
+                    size={24} 
+                    className="text-white transform -translate-x-3 -translate-y-3"
                     style={{ fill: 'white' }}
                   />
                   
@@ -253,8 +310,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) =
                       <rect 
                         x="0" 
                         y="0" 
-                        width="100" 
-                        height="40" 
+                        width="90" 
+                        height="30" 
                         fill="white" 
                         stroke="#e2e8f0" 
                         rx="4"
@@ -264,10 +321,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ flightData, currentTime }) =
                         {data.flight.flightNumber}
                       </text>
                       <text x="6" y="24" fontSize="8" fill="#6B7280">
-                        {data.isLive ? 'Live' : 'Estimated'} • {data.flight.progress?.toFixed(0)}%
-                      </text>
-                      <text x="6" y="36" fontSize="8" fill="#6B7280">
-                        {data.isLive ? 'Real-time tracking' : 'Schedule-based estimate'}
+                        {data.isLive ? 'Live tracking' : 'Estimated position'}
                       </text>
                     </g>
                   )}

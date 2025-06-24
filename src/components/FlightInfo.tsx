@@ -58,18 +58,32 @@ export const FlightInfo: React.FC<FlightInfoProps> = ({
     return date.toLocaleDateString('en-US', options);
   };
 
-  const getRemainingTime = () => {
+  const getTimeToEvent = () => {
     if (!flight) return null;
+    const departure = new Date(flight.departure);
     const arrival = new Date(flight.arrival);
     const now = currentTime;
-    const diff = arrival.getTime() - now.getTime();
     
-    if (diff <= 0) return "Arrived";
+    // Check if flight has departed
+    const hasDeparted = now.getTime() >= departure.getTime();
     
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}h ${minutes}m`;
+    if (hasDeparted) {
+      // Flight has departed, show time to arrival
+      const diff = arrival.getTime() - now.getTime();
+      if (diff <= 0) return { text: "Arrived", type: "arrived" };
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      return { text: `${hours}h ${minutes}m`, type: "arrives" };
+    } else {
+      // Flight hasn't departed, show time to departure
+      const diff = departure.getTime() - now.getTime();
+      if (diff <= 0) return { text: "Departing", type: "departing" };
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      return { text: `${hours}h ${minutes}m`, type: "departs" };
+    }
   };
 
   const getStatusColor = () => {
@@ -117,19 +131,30 @@ export const FlightInfo: React.FC<FlightInfoProps> = ({
           {getStatusIcon()}
           <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
         </div>
-        {flight.status === 'current' && (
-          <div className="text-right">
-            <div className="text-xs text-amber-600 font-medium">ETA: {getRemainingTime()}</div>
-            {flight.progress && (
-              <div className="text-xs text-amber-600">{flight.progress}% Complete</div>
-            )}
-          </div>
-        )}
-        {flight.status === 'upcoming' && (
-          <div className="text-xs text-blue-600 font-medium">
-            In {getRemainingTime()}
-          </div>
-        )}
+        {flight.status === 'current' && (() => {
+          const timeInfo = getTimeToEvent();
+          return (
+            <div className="text-right">
+              <div className="text-xs text-amber-600 font-medium">
+                {timeInfo?.type === 'arrives' && `Arrives in ${timeInfo.text}`}
+                {timeInfo?.type === 'arrived' && timeInfo.text}
+                {timeInfo?.type === 'departs' && `Departs in ${timeInfo.text}`}
+                {timeInfo?.type === 'departing' && timeInfo.text}
+              </div>
+            </div>
+          );
+        })()}
+        {flight.status === 'upcoming' && (() => {
+          const timeInfo = getTimeToEvent();
+          return (
+            <div className="text-xs text-blue-600 font-medium">
+              {timeInfo?.type === 'departs' && `Departs in ${timeInfo.text}`}
+              {timeInfo?.type === 'departing' && timeInfo.text}
+              {timeInfo?.type === 'arrives' && `Arrives in ${timeInfo.text}`}
+              {timeInfo?.type === 'arrived' && timeInfo.text}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Route */}
