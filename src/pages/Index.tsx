@@ -157,7 +157,7 @@ const Index = () => {
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-white/20 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg">
                 <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -169,7 +169,7 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Live Status */}
+            {/* Live Status - Right aligned on mobile */}
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md rounded-full px-3 sm:px-4 py-2 border border-white/20">
                 <trackingStatus.icon
@@ -216,16 +216,18 @@ const Index = () => {
                 <TimezoneSelector
                   selectedTimezone={selectedTimezone}
                   onTimezoneChange={setSelectedTimezone}
+                  detectedTimezone={detectedTimezone}
                 />
               </div>
             </div>
           </div>
 
           {/* Mobile Timezone Selector */}
-          <div className="sm:hidden mt-4 flex justify-center">
+          <div className="sm:hidden mt-2 flex justify-center">
             <TimezoneSelector
               selectedTimezone={selectedTimezone}
               onTimezoneChange={setSelectedTimezone}
+              detectedTimezone={detectedTimezone}
             />
           </div>
 

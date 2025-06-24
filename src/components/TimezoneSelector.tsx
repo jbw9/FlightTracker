@@ -6,14 +6,31 @@ import { Globe } from 'lucide-react';
 interface TimezoneSelectorProps {
   selectedTimezone: string;
   onTimezoneChange: (timezone: string) => void;
+  detectedTimezone?: string;
 }
 
 export const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
   selectedTimezone,
   onTimezoneChange,
+  detectedTimezone,
 }) => {
+  const getTimezoneLabel = (value: string) => {
+    if (value === 'auto' && detectedTimezone) {
+      const labels = {
+        'America/Chicago': 'Chicago Time (CT)',
+        'Asia/Jakarta': 'Jakarta Time (WIB)',
+      };
+      return labels[detectedTimezone as keyof typeof labels] || 'Auto-detect location';
+    }
+    return {
+      'auto': 'Auto-detect location',
+      'America/Chicago': 'Chicago Time (CT)',
+      'Asia/Jakarta': 'Jakarta Time (WIB)',
+    }[value] || value;
+  };
+
   const timezones = [
-    { value: 'auto', label: 'Auto-detect location' },
+    { value: 'auto', label: getTimezoneLabel('auto') },
     { value: 'America/Chicago', label: 'Chicago Time (CT)' },
     { value: 'Asia/Jakarta', label: 'Jakarta Time (WIB)' },
   ];
